@@ -1,0 +1,15 @@
+artifact_uri: file:///C:/Users/dewam/Dokumen/Beasiswa%20Lomba%20and%20Goals/Laskar%20AI/Project/Membangun%20Sistem%20Machine%20Learning/submission/SMSML_demahesta/Workflow-CI/MLProject/mlruns/0/616f3b91fd5746b8b29531e1b0dfa0ff/artifacts
+end_time: 1747531321569
+entry_point_name: ''
+experiment_id: '0'
+lifecycle_stage: active
+run_id: 616f3b91fd5746b8b29531e1b0dfa0ff
+run_name: Naive Bayes
+run_uuid: 616f3b91fd5746b8b29531e1b0dfa0ff
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1747531312686
+status: 3
+tags: []
+user_id: dewam

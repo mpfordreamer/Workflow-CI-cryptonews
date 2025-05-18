@@ -1,0 +1,17 @@
+name: sentiment-mlflow
+channels:
+  - conda-forge
+dependencies:
+  - python=3.9
+  - pip
+  - scikit-learn
+  - pandas
+  - numpy
+  - matplotlib
+  - seaborn
+  - pip:
+    - mlflow
+    - lightgbm
+    - imbalanced-learn
+    - scikit-learn
+    - joblib

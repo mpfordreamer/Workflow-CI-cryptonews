@@ -1,0 +1,8 @@
+name: crypto-sentiment-analysis
+conda_env: conda.yaml
+entry_points:
+  main:
+    parameters:
+      data_path: {type: str, default: "default"}
+      output_model: {type: str, default: "best_lgbm_model.pkl"}
+    command: "python modelling.py --data-path {data_path} --output-model {output_model}"
