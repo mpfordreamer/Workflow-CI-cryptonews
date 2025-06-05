@@ -34,8 +34,8 @@ jobs:
       - name: Run MLflow Project
         working-directory: MLProject
         run: |
-          mlflow run . --no-conda
-
+          mlflow run . 
+          
       - name: Upload Model Artefak
         uses: actions/upload-artifact@v4
         with:
