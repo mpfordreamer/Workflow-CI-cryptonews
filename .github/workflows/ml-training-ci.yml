@@ -2,14 +2,15 @@ name: ML Training CI - Advance Criteria
 
 on:
   push:
-    branches: [main]
-    paths:
-      - 'MLProject/**'
-      # - 'MLProject/preprocessed_cryptonews.csv'
+    branches: [ main ]
+  workflow_dispatch:
 
-jobs:
-  build:
-    runs-on: ubuntu-latest
+  jobs:
+    test_job:
+      runs-on: ubuntu-latest
+      steps:
+        - name: Echo a message
+          run: echo "Test workflow is running!"
 
     steps:
       - name: Checkout Repository
