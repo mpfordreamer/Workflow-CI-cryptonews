@@ -33,6 +33,9 @@ jobs:
 
       - name: Run MLflow Project
         working-directory: MLProject
+        env:
+          DAGSHUB_TOKEN: ${{ secrets.DAGSHUB_TOKEN }}
+          MLFLOW_TRACKING_URI: ${{ secrets.MLFLOW_TRACKING_URI }}
         run: |
           mlflow run . --env-manager local
 
