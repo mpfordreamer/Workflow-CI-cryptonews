@@ -5,12 +5,9 @@ on:
     branches: [ main ]
   workflow_dispatch:
 
-  jobs:
-    test_job:
-      runs-on: ubuntu-latest
-      steps:
-        - name: Echo a message
-          run: echo "Test workflow is running!"
+jobs:
+  build:
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout Repository
