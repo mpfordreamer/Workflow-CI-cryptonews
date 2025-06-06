@@ -191,9 +191,6 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    # Start a single MLflow run
-    mlflow.start_run(run_name="main_run")
-
     # Load and preprocess data
     X_train, X_test, y_train, y_test = load_and_preprocess_data(args.data_path)
 
@@ -225,6 +222,3 @@ if __name__ == "__main__":
     print(f"[Test] F1 Score: {test_f1:.4f}")
     print(f"[Test] Accuracy: {accuracy:.4f}")
     print(f"\n[INFO] Best model saved as '{args.output_model}'")
-
-    # End the MLflow run
-    mlflow.end_run()
