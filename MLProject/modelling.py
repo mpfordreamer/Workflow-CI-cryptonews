@@ -39,13 +39,13 @@ if DAGSHUB_TOKEN:
         mlflow=True
     )
 
-# Register experiment (ensure it matches mlflow run)
+# Register experiment
 mlflow.set_experiment(EXPERIMENT_NAME)
 print(f"[INFO] MLflow Experiment: {EXPERIMENT_NAME}")
 print(f"[INFO] MLflow Tracking URI: {mlflow.get_tracking_uri()}")
 
 def load_and_preprocess_data(data_path):
-    """Load CSV and vectorize text; split and apply SMOTE on training set."""
+    """Load CSV, vectorize text, split, and apply SMOTE on training set."""
     current_dir = os.path.dirname(os.path.abspath(__file__))
     csv_file = os.path.join(current_dir, data_path)
     if not os.path.exists(csv_file):
@@ -62,7 +62,7 @@ def load_and_preprocess_data(data_path):
         X, y, test_size=0.3, random_state=42, stratify=y
     )
 
-    # Keep original training data for cross-validation
+    # Keep original training data for Optuna cross-validation
     global X_train_original, y_train_original
     X_train_original, y_train_original = X_train, y_train
 
@@ -72,7 +72,7 @@ def load_and_preprocess_data(data_path):
     return X_resampled, X_test, y_resampled, y_test
 
 def objective(trial):
-    """Optuna objective: cross-validate a pipeline with SMOTE + LightGBM."""
+    """Optuna objective: perform 3-fold CV on SMOTE+LightGBM pipeline."""
     params = {
         'n_estimators': trial.suggest_int('n_estimators', 50, 300),
         'learning_rate': trial.suggest_float('learning_rate', 0.005, 0.3),
@@ -100,7 +100,7 @@ def objective(trial):
     return float(np.mean(scores))
 
 def train_best_model(study, X_train, X_test, y_train, y_test, output_model_name):
-    """Train final model with best params; log metrics and artifacts."""
+    """Train final LightGBM with best params; log metrics and artifacts to MLflow."""
     os.makedirs("models", exist_ok=True)
 
     # Log best hyperparameters
@@ -128,13 +128,13 @@ def train_best_model(study, X_train, X_test, y_train, y_test, output_model_name)
     mlflow.log_param("n_features", X_train.shape[1])
     mlflow.log_param("n_samples", X_train.shape[0])
 
-    # Save and log the Pickle model
+    # Save and log Pickle model
     pkl_path = os.path.join("models", output_model_name)
     with open(pkl_path, "wb") as f:
         pickle.dump(best_model, f)
     mlflow.log_artifact(pkl_path, artifact_path="best_lgbm_pkl")
 
-    # Save and log LightGBM native model (.txt)
+    # Save and log native LightGBM text model
     native_path = os.path.join("models", "best_lgbm_native.txt")
     best_model.booster_.save_model(native_path)
     mlflow.log_artifact(native_path, artifact_path="best_lgbm_native")
@@ -176,19 +176,17 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    # Attach to existing MLflow run if MLFLOW_RUN_ID is provided
-    run_id = os.environ.get("MLFLOW_RUN_ID")
-    if run_id is not None:
-        mlflow.start_run(run_id=run_id)
+    # We DO NOT call mlflow.start_run(...) here, because `mlflow run` already opened a run.
+    # Just log into the active run.
 
     # Load and preprocess data
     X_train, X_test, y_train, y_test = load_and_preprocess_data(args.data_path)
 
-    # Run Optuna study (no new start_run)
+    # Optimize hyperparameters with Optuna (no explicit start_run)
     study = optuna.create_study(direction="maximize")
     study.optimize(objective, n_trials=50)
 
-    # Log Optuna results
+    # Log Optuna summary parameters
     mlflow.log_params({
         "best_trial_number": study.best_trial.number,
         "best_value":       study.best_value,
@@ -200,7 +198,7 @@ if __name__ == "__main__":
     print("Label after SMOTE:", pd.Series(y_train).value_counts())
     print("\n[INFO] Training best model…")
 
-    # Train final model and log everything
+    # Train final model and log metrics/artifacts
     best_model, test_f1, accuracy = train_best_model(
         study, X_train, X_test, y_train, y_test, args.output_model
     )
