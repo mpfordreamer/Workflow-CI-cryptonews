@@ -10,7 +10,14 @@ import optuna
 from sklearn.feature_extraction.text import TfidfVectorizer
 from imblearn.over_sampling import SMOTE
 from sklearn.model_selection import train_test_split, cross_val_score
-from sklearn.metrics import f1_score, accuracy_score, precision_score, roc_auc_score, confusion_matrix, classification_report
+from sklearn.metrics import (
+    f1_score,
+    accuracy_score,
+    precision_score,
+    roc_auc_score,
+    confusion_matrix,
+    classification_report,
+)
 import lightgbm as lgb
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -20,6 +27,7 @@ DAGSHUB_REPO_OWNER = 'mpfordreamer'
 DAGSHUB_REPO_NAME  = 'Cryptonews-analysis'
 EXPERIMENT_NAME    = "crypto_sentiment_modeling_docker_v5"
 
+# If DAGSHUB_TOKEN is set, initialize DagsHub integration for MLflow
 DAGSHUB_TOKEN = os.getenv("DAGSHUB_TOKEN", "").strip()
 if DAGSHUB_TOKEN:
     from dagshub import init as dagshub_init
@@ -31,11 +39,13 @@ if DAGSHUB_TOKEN:
         mlflow=True
     )
 
+# Register experiment (ensure it matches mlflow run)
 mlflow.set_experiment(EXPERIMENT_NAME)
 print(f"[INFO] MLflow Experiment: {EXPERIMENT_NAME}")
 print(f"[INFO] MLflow Tracking URI: {mlflow.get_tracking_uri()}")
 
 def load_and_preprocess_data(data_path):
+    """Load CSV and vectorize text; split and apply SMOTE on training set."""
     current_dir = os.path.dirname(os.path.abspath(__file__))
     csv_file = os.path.join(current_dir, data_path)
     if not os.path.exists(csv_file):
@@ -52,6 +62,7 @@ def load_and_preprocess_data(data_path):
         X, y, test_size=0.3, random_state=42, stratify=y
     )
 
+    # Keep original training data for cross-validation
     global X_train_original, y_train_original
     X_train_original, y_train_original = X_train, y_train
 
@@ -60,8 +71,8 @@ def load_and_preprocess_data(data_path):
 
     return X_resampled, X_test, y_resampled, y_test
 
-
 def objective(trial):
+    """Optuna objective: cross-validate a pipeline with SMOTE + LightGBM."""
     params = {
         'n_estimators': trial.suggest_int('n_estimators', 50, 300),
         'learning_rate': trial.suggest_float('learning_rate', 0.005, 0.3),
@@ -88,11 +99,11 @@ def objective(trial):
     )
     return float(np.mean(scores))
 
-
 def train_best_model(study, X_train, X_test, y_train, y_test, output_model_name):
+    """Train final model with best params; log metrics and artifacts."""
     os.makedirs("models", exist_ok=True)
 
-    # Log the chosen hyperparameters to the active run
+    # Log best hyperparameters
     mlflow.log_params(study.best_params)
 
     start_time = time.time()
@@ -107,6 +118,7 @@ def train_best_model(study, X_train, X_test, y_train, y_test, output_model_name)
     precision= precision_score(y_test, y_pred, average='weighted')
     roc_auc  = roc_auc_score(y_test, best_model.predict_proba(X_test), multi_class='ovr')
 
+    # Log evaluation metrics
     mlflow.log_metric("test_f1", test_f1)
     mlflow.log_metric("accuracy", accuracy)
     mlflow.log_metric("precision", precision)
@@ -116,18 +128,18 @@ def train_best_model(study, X_train, X_test, y_train, y_test, output_model_name)
     mlflow.log_param("n_features", X_train.shape[1])
     mlflow.log_param("n_samples", X_train.shape[0])
 
-    # Save .pkl
+    # Save and log the Pickle model
     pkl_path = os.path.join("models", output_model_name)
     with open(pkl_path, "wb") as f:
         pickle.dump(best_model, f)
     mlflow.log_artifact(pkl_path, artifact_path="best_lgbm_pkl")
 
-    # Save native LightGBM model (.txt)
+    # Save and log LightGBM native model (.txt)
     native_path = os.path.join("models", "best_lgbm_native.txt")
     best_model.booster_.save_model(native_path)
     mlflow.log_artifact(native_path, artifact_path="best_lgbm_native")
 
-    # Save confusion matrix figure
+    # Save and log confusion matrix figure
     cm = confusion_matrix(y_test, y_pred)
     fig, ax = plt.subplots(figsize=(6, 5))
     sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', ax=ax)
@@ -139,7 +151,7 @@ def train_best_model(study, X_train, X_test, y_train, y_test, output_model_name)
     plt.savefig(cm_path)
     mlflow.log_artifact(cm_path, artifact_path="confusion_matrix")
 
-    # Save classification report
+    # Save and log classification report
     report = classification_report(y_test, y_pred)
     report_path = os.path.join("models", "classification_report.txt")
     with open(report_path, "w") as f:
@@ -147,7 +159,6 @@ def train_best_model(study, X_train, X_test, y_train, y_test, output_model_name)
     mlflow.log_artifact(report_path, artifact_path="classification_report")
 
     return best_model, test_f1, accuracy
-
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -165,11 +176,19 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
+    # Attach to existing MLflow run if MLFLOW_RUN_ID is provided
+    run_id = os.environ.get("MLFLOW_RUN_ID")
+    if run_id is not None:
+        mlflow.start_run(run_id=run_id)
+
+    # Load and preprocess data
     X_train, X_test, y_train, y_test = load_and_preprocess_data(args.data_path)
 
+    # Run Optuna study (no new start_run)
     study = optuna.create_study(direction="maximize")
     study.optimize(objective, n_trials=50)
 
+    # Log Optuna results
     mlflow.log_params({
         "best_trial_number": study.best_trial.number,
         "best_value":       study.best_value,
@@ -181,6 +200,7 @@ if __name__ == "__main__":
     print("Label after SMOTE:", pd.Series(y_train).value_counts())
     print("\n[INFO] Training best model…")
 
+    # Train final model and log everything
     best_model, test_f1, accuracy = train_best_model(
         study, X_train, X_test, y_train, y_test, args.output_model
     )
