@@ -120,7 +120,7 @@ def train_best_model(study, X_train, X_test, y_train, y_test, output_model_name)
     """
     os.makedirs("models", exist_ok=True)
 
-    with mlflow.start_run(run_name="best_model"):
+    with mlflow.start_run(run_name="best_model", nested=True):
         mlflow.log_params(study.best_params)
 
         start_time = time.time()
@@ -198,10 +198,12 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
+    # Load and preprocess data
     X_train, X_test, y_train, y_test = load_and_preprocess_data(args.data_path)
 
+    # Optuna optimization (nested run)
     study = optuna.create_study(direction='maximize')
-    with mlflow.start_run(run_name="optimization") as _:
+    with mlflow.start_run(run_name="optimization", nested=True):
         study.optimize(objective, n_trials=50)
         mlflow.log_params({
             "best_trial_number": study.best_trial.number,
@@ -210,8 +212,22 @@ if __name__ == "__main__":
             "optimization_direction": "maximize"
         })
 
-    train_best_model(
-        study, X_train, X_test, y_train, y_test, args.output_model
-    )
+    # Print label counts before/after SMOTE
+    print("Label before SMOTE:", pd.Series(y_train_original).value_counts())
+    print("Label after SMOTE:", pd.Series(y_train).value_counts())
+    print("\n[INFO] Training best model...")
 
-    print(f"[INFO] Model saved at: models/{args.output_model}")
+    # Train and evaluate best model (nested run)
+    with mlflow.start_run(run_name="best_model", nested=True):
+        best_model, test_f1, accuracy = train_best_model(
+            study, X_train, X_test, y_train, y_test, args.output_model
+        )
+
+    # Print results
+    print("\n[RESULTS] Best Parameters:")
+    print(study.best_params)
+    print(f"\n[RESULTS] Best CV F1 Score: {study.best_value:.4f}")
+    print(f"[Test] F1 Score: {test_f1:.4f}")
+    print(f"[Test] Accuracy: {accuracy:.4f}")
+    print(f"\n[INFO] Best model saved as '{args.output_model}'")
+
