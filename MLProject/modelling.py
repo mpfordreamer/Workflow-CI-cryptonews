@@ -27,7 +27,6 @@ DAGSHUB_REPO_OWNER = 'mpfordreamer'
 DAGSHUB_REPO_NAME  = 'Cryptonews-analysis'
 EXPERIMENT_NAME    = "crypto_sentiment_modeling_docker_v5"
 
-# Get token from environment. If missing, skip DagsHub.
 DAGSHUB_TOKEN = os.getenv("DAGSHUB_TOKEN", "").strip()
 if DAGSHUB_TOKEN:
     from dagshub import init as dagshub_init
@@ -45,7 +44,7 @@ print(f"[INFO] MLflow Tracking URI: {mlflow.get_tracking_uri()}")
 
 def load_and_preprocess_data(data_path):
     """
-    Load CSV file directly from MLProject/data_path (e.g., 'preprocessed_cryptonews.csv'),
+    Load CSV file directly from MLProject/data_path (e.g. 'preprocessed_cryptonews.csv'),
     perform TF-IDF, split, apply SMOTE, then return
     (X_train_resampled, X_test, y_train_resampled, y_test).
     """
