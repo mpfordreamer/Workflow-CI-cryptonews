@@ -32,6 +32,7 @@ if DAGSHUB_TOKEN:
     )
 
 mlflow.set_experiment(EXPERIMENT_NAME)
+mlflow.log_param("script_started", True)
 print(f"[INFO] MLflow Experiment: {EXPERIMENT_NAME}")
 print(f"[INFO] MLflow Tracking URI: {mlflow.get_tracking_uri()}")
 
