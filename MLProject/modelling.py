@@ -86,25 +86,19 @@ def objective(trial):
         'verbose': -1
     }
 
-    # START A NESTED RUN 
-    with mlflow.start_run(nested=True):
-        mlflow.log_params(params)
-
-        pipeline = Pipeline([
-            ('smote', SMOTE(random_state=42)),
-            ('lgbm', lgb.LGBMClassifier(**params))
-        ])
-        scores = cross_val_score(
-            pipeline,
-            X_train_original,
-            y_train_original,
-            cv=3,
-            scoring='f1_weighted',
-            n_jobs=-1
-        )
-        mean_f1 = float(np.mean(scores))
-        mlflow.log_metric("mean_cv_f1", mean_f1)
-
+    pipeline = Pipeline([
+        ('smote', SMOTE(random_state=42)),
+        ('lgbm', lgb.LGBMClassifier(**params))
+    ])
+    scores = cross_val_score(
+        pipeline,
+        X_train_original,
+        y_train_original,
+        cv=3,
+        scoring='f1_weighted',
+        n_jobs=-1
+    )
+    mean_f1 = float(np.mean(scores))
     return mean_f1
 
 
@@ -179,44 +173,53 @@ if __name__ == "__main__":
         "--data_path",
         type=str,
         required=True,
-        help="CSV file name in MLProject/ (e.g. preprocessed_cryptonews.csv)"
+        help="CSV filename (e.g., preprocessed_cryptonews.csv)"
     )
     parser.add_argument(
         "--output_model",
         type=str,
         required=True,
-        help="Name for the saved .pkl model (e.g. best_lgbm_model.pkl)"
+        help="Output .pkl filename (e.g., best_lgbm_model.pkl)"
     )
     args = parser.parse_args()
 
     # Load and preprocess data
     X_train, X_test, y_train, y_test = load_and_preprocess_data(args.data_path)
 
-    # Run Optuna optimization. Each trial will open its own nested run.
-    study = optuna.create_study(direction='maximize')
+    # Run Optuna search
+    study = optuna.create_study(direction="maximize")
     study.optimize(objective, n_trials=50)
 
-    mlflow.log_params({
-        "best_trial_number": study.best_trial.number,
-        "best_value":       study.best_value,
-        "n_trials":         50,
-        "optimization_direction": "maximize"
-    })
+    # Start one MLflow run
+    with mlflow.start_run(run_name="final_run"):
 
-    # Print class distribution before/after SMOTE
-    print("Label before SMOTE:", pd.Series(y_train_original).value_counts())
-    print("Label after SMOTE:", pd.Series(y_train).value_counts())
-    print("\n[INFO] Training best model…")
+        # Log best-trial info
+        mlflow.log_params({
+            "best_trial_number": study.best_trial.number,
+            "best_value":         study.best_value,
+            "n_trials":           50,
+            "optimization_direction": "maximize"
+        })
 
-    # Train and log final model (will also log under the same parent run)
-    best_model, test_f1, accuracy = train_best_model(
-        study, X_train, X_test, y_train, y_test, args.output_model
-    )
+        # Show class distribution before/after SMOTE
+        print("Label before SMOTE:", pd.Series(y_train_original).value_counts())
+        print("Label after SMOTE:", pd.Series(y_train).value_counts())
+        print("\n[INFO] Training best model...")
 
-    # Print final results
-    print("\n[RESULTS] Best Parameters:")
-    print(study.best_params)
-    print(f"\n[RESULTS] Best CV F1 Score: {study.best_value:.4f}")
-    print(f"[Test] F1 Score: {test_f1:.4f}")
-    print(f"[Test] Accuracy: {accuracy:.4f}")
-    print(f"\n[INFO] Best model saved as '{args.output_model}'")
+        # Train and log final model
+        best_model, test_f1, accuracy = train_best_model(
+            study, X_train, X_test, y_train, y_test, args.output_model
+        )
+
+        # Log final metrics and params
+        mlflow.log_params(study.best_params)
+        mlflow.log_metric("test_f1", test_f1)
+        mlflow.log_metric("accuracy", accuracy)
+
+        # Print final results
+        print("\n[RESULTS] Best Parameters:")
+        print(study.best_params)
+        print(f"\n[RESULTS] Best CV F1 Score: {study.best_value:.4f}")
+        print(f"[Test] F1 Score: {test_f1:.4f}")
+        print(f"[Test] Accuracy: {accuracy:.4f}")
+        print(f"\n[INFO] Best model saved as '{args.output_model}'")
