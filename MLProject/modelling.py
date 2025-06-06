@@ -32,7 +32,6 @@ if DAGSHUB_TOKEN:
     )
 
 mlflow.set_experiment(EXPERIMENT_NAME)
-mlflow.log_param("script_started", True)
 print(f"[INFO] MLflow Experiment: {EXPERIMENT_NAME}")
 print(f"[INFO] MLflow Tracking URI: {mlflow.get_tracking_uri()}")
 
@@ -166,30 +165,27 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    # Load + preprocess data
     X_train, X_test, y_train, y_test = load_and_preprocess_data(args.data_path)
 
-    # Run the Optuna study (no mlflow.start_run() here—just return mean_f1)
     study = optuna.create_study(direction="maximize")
     study.optimize(objective, n_trials=50)
 
-    # Everything from this point on is logged to the active MLflow run
     mlflow.log_params({
         "best_trial_number": study.best_trial.number,
-        "best_value":         study.best_value,
-        "n_trials":           50,
+        "best_value":       study.best_value,
+        "n_trials":         50,
         "optimization_direction": "maximize"
     })
 
     print("Label before SMOTE:", pd.Series(y_train_original).value_counts())
     print("Label after SMOTE:", pd.Series(y_train).value_counts())
-    print("\n[INFO] Training best model...")
+    print("\n[INFO] Training best model…")
 
     best_model, test_f1, accuracy = train_best_model(
         study, X_train, X_test, y_train, y_test, args.output_model
     )
 
-    mlflow.log_params(study.best_params)
+    # Log final metrics under the same run:
     mlflow.log_metric("test_f1", test_f1)
     mlflow.log_metric("accuracy", accuracy)
 
