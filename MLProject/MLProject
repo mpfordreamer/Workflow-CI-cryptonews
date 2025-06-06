@@ -6,7 +6,4 @@ entry_points:
     parameters:
       data_dir:     {type: str, default: "preprocessed_cryptonews"}
       output_model: {type: str, default: "best_lgbm_model.pkl"}
-    command: >
-      python modelling.py
-        --data_dir {data_dir}
-        --output_model {output_model}
+    command: "python modelling.py --data_dir {data_dir} --output_model {output_model}"
