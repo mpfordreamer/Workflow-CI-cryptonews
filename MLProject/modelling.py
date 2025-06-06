@@ -22,7 +22,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from imblearn.pipeline import Pipeline
 
-# — DagsHub & MLflow configuration
+# DagsHub & MLflow setup
 DAGSHUB_REPO_OWNER = 'mpfordreamer'
 DAGSHUB_REPO_NAME  = 'Cryptonews-analysis'
 EXPERIMENT_NAME    = "crypto_sentiment_modeling_docker_v5"
@@ -44,9 +44,9 @@ print(f"[INFO] MLflow Tracking URI: {mlflow.get_tracking_uri()}")
 
 def load_and_preprocess_data(data_path):
     """
-    Load CSV file directly from MLProject/data_path (e.g. 'preprocessed_cryptonews.csv'),
-    perform TF-IDF, split, apply SMOTE, then return
-    (X_train_resampled, X_test, y_train_resampled, y_test).
+    Load CSV from MLProject/data_path,
+    apply TF-IDF, split into train/test,
+    apply SMOTE, and return data.
     """
     current_dir = os.path.dirname(os.path.abspath(__file__))
     csv_file = os.path.join(current_dir, data_path)
@@ -54,14 +54,14 @@ def load_and_preprocess_data(data_path):
         raise FileNotFoundError(f"CSV not found at {csv_file}")
     df = pd.read_csv(csv_file)
 
-    X_text = df['text_clean']
-    y      = df['sentiment_encoded']
+    texts = df['text_clean']
+    labels = df['sentiment_encoded']
 
     vectorizer = TfidfVectorizer(max_features=2000)
-    X = vectorizer.fit_transform(X_text)
+    X = vectorizer.fit_transform(texts)
 
     X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=0.3, random_state=42, stratify=y
+        X, labels, test_size=0.3, random_state=42, stratify=labels
     )
 
     global X_train_original, y_train_original
@@ -75,8 +75,8 @@ def load_and_preprocess_data(data_path):
 
 def objective(trial):
     """
-    Optuna objective function for LightGBM hyperparameter optimization,
-    logging params and mean CV F1 to MLflow.
+    Optuna objective: choose LightGBM params,
+    log params & mean CV F1 to MLflow.
     """
     params = {
         'n_estimators': trial.suggest_int('n_estimators', 50, 300),
@@ -90,96 +90,89 @@ def objective(trial):
         'verbose': -1
     }
 
-    with mlflow.start_run(nested=True):
-        mlflow.log_params(params)
-        pipeline = Pipeline([
-            ('smote', SMOTE(random_state=42)),
-            ('lgbm', lgb.LGBMClassifier(**params))
-        ])
-        scores = cross_val_score(
-            pipeline,
-            X_train_original,
-            y_train_original,
-            cv=3,
-            scoring='f1_weighted',
-            n_jobs=-1
-        )
-        mean_f1 = float(np.mean(scores))
-        mlflow.log_metric("mean_cv_f1", mean_f1)
-        return mean_f1
+    # Log chosen parameters to MLflow
+    mlflow.log_params(params)
+
+    pipeline = Pipeline([
+        ('smote', SMOTE(random_state=42)),
+        ('lgbm', lgb.LGBMClassifier(**params))
+    ])
+    scores = cross_val_score(
+        pipeline,
+        X_train_original,
+        y_train_original,
+        cv=3,
+        scoring='f1_weighted',
+        n_jobs=-1
+    )
+    mean_f1 = float(np.mean(scores))
+    mlflow.log_metric("mean_cv_f1", mean_f1)
+    return mean_f1
 
 
 def train_best_model(study, X_train, X_test, y_train, y_test, output_model_name):
     """
-    Train model using best parameters from study, save artifacts:
-    - Model pickle (.pkl)
-    - Native LightGBM model (.txt)
-    - Confusion matrix image (.png)
-    - Classification report (.txt)
-    All logged to MLflow.
+    Train LightGBM with best params,
+    log metrics and save artifacts to MLflow.
     """
     os.makedirs("models", exist_ok=True)
 
-    with mlflow.start_run(run_name="best_model", nested=True):
-        mlflow.log_params(study.best_params)
+    params = study.best_params
+    mlflow.log_params(params)  # Log best params to MLflow
 
-        start_time = time.time()
-        best_model = lgb.LGBMClassifier(
-            **study.best_params,
-            random_state=42,
-            verbose=-1
-        )
-        best_model.fit(X_train, y_train)
+    start_time = time.time()
+    model = lgb.LGBMClassifier(**params, random_state=42, verbose=-1)
+    model.fit(X_train, y_train)
 
-        training_time = time.time() - start_time
-        mlflow.log_metric("training_time", training_time)
+    training_time = time.time() - start_time
+    mlflow.log_metric("training_time", training_time)
 
-        y_pred   = best_model.predict(X_test)
-        test_f1  = f1_score(y_test, y_pred, average='weighted')
-        accuracy = accuracy_score(y_test, y_pred)
-        precision= precision_score(y_test, y_pred, average='weighted')
-        roc_auc  = roc_auc_score(y_test, best_model.predict_proba(X_test), multi_class='ovr')
+    y_pred = model.predict(X_test)
+    test_f1  = f1_score(y_test, y_pred, average='weighted')
+    accuracy = accuracy_score(y_test, y_pred)
+    precision = precision_score(y_test, y_pred, average='weighted')
+    roc_auc = roc_auc_score(y_test, model.predict_proba(X_test), multi_class='ovr')
 
-        mlflow.log_metric("test_f1", test_f1)
-        mlflow.log_metric("accuracy", accuracy)
-        mlflow.log_metric("precision", precision)
-        mlflow.log_metric("roc_auc", roc_auc)
+    mlflow.log_metric("test_f1", test_f1)
+    mlflow.log_metric("accuracy", accuracy)
+    mlflow.log_metric("precision", precision)
+    mlflow.log_metric("roc_auc", roc_auc)
 
-        mlflow.log_param("model_type", "LGBMClassifier")
-        mlflow.log_param("n_features", X_train.shape[1])
-        mlflow.log_param("n_samples", X_train.shape[0])
+    mlflow.log_param("model_type", "LGBMClassifier")
+    mlflow.log_param("n_features", X_train.shape[1])
+    mlflow.log_param("n_samples", X_train.shape[0])
 
-        # Save model as a pickle file
-        pkl_path = os.path.join("models", output_model_name)
-        with open(pkl_path, "wb") as f:
-            pickle.dump(best_model, f)
-        mlflow.log_artifact(pkl_path, artifact_path="best_lgbm_pkl")
+    # Save pickle file
+    pkl_path = os.path.join("models", output_model_name)
+    with open(pkl_path, "wb") as f:
+        pickle.dump(model, f)
+    mlflow.log_artifact(pkl_path, artifact_path="best_lgbm_pkl")
 
-        # Save native LightGBM model
-        native_path = os.path.join("models", "best_lgbm_native.txt")
-        best_model.booster_.save_model(native_path)
-        mlflow.log_artifact(native_path, artifact_path="best_lgbm_native")
+    # Save LightGBM native format
+    native_path = os.path.join("models", "best_lgbm_native.txt")
+    model.booster_.save_model(native_path)
+    mlflow.log_artifact(native_path, artifact_path="best_lgbm_native")
 
-        # Save confusion matrix image
-        cm = confusion_matrix(y_test, y_pred)
-        fig, ax = plt.subplots(figsize=(6, 5))
-        sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', ax=ax)
-        ax.set_xlabel('Predicted')
-        ax.set_ylabel('Actual')
-        ax.set_title('Confusion Matrix')
-        plt.tight_layout()
-        cm_path = os.path.join("models", "confusion_matrix.png")
-        plt.savefig(cm_path)
-        mlflow.log_artifact(cm_path, artifact_path="confusion_matrix")
+    # Save confusion matrix image
+    cm = confusion_matrix(y_test, y_pred)
+    fig, ax = plt.subplots(figsize=(6, 5))
+    sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', ax=ax)
+    ax.set_xlabel('Predicted')
+    ax.set_ylabel('Actual')
+    ax.set_title('Confusion Matrix')
+    plt.tight_layout()
+    cm_path = os.path.join("models", "confusion_matrix.png")
+    plt.savefig(cm_path)
+    mlflow.log_artifact(cm_path, artifact_path="confusion_matrix")
 
-        # Save classification report
-        report = classification_report(y_test, y_pred)
-        report_path = os.path.join("models", "classification_report.txt")
-        with open(report_path, "w") as f:
-            f.write(report)
-        mlflow.log_artifact(report_path, artifact_path="classification_report")
+    # Save classification report
+    report = classification_report(y_test, y_pred)
+    report_path = os.path.join("models", "classification_report.txt")
+    with open(report_path, "w") as f:
+        f.write(report)
+    mlflow.log_artifact(report_path, artifact_path="classification_report")
 
-        return best_model, test_f1, accuracy
+    return model, test_f1, accuracy
 
 
 if __name__ == "__main__":
@@ -188,42 +181,44 @@ if __name__ == "__main__":
         "--data_path",
         type=str,
         required=True,
-        help="CSV filename (e.g., preprocessed_cryptonews.csv) located in MLProject/"
+        help="CSV file name in MLProject/ (e.g., preprocessed_cryptonews.csv)"
     )
     parser.add_argument(
         "--output_model",
         type=str,
         required=True,
-        help="Name of the output .pkl file (e.g., best_lgbm_model.pkl)"
+        help="Name for the saved .pkl model (e.g., best_lgbm_model.pkl)"
     )
     args = parser.parse_args()
+
+    # Start a single MLflow run
+    mlflow.start_run(run_name="main_run")
 
     # Load and preprocess data
     X_train, X_test, y_train, y_test = load_and_preprocess_data(args.data_path)
 
-    # Optuna optimization (nested run)
+    # Run Optuna optimization
     study = optuna.create_study(direction='maximize')
-    with mlflow.start_run(run_name="optimization", nested=True):
-        study.optimize(objective, n_trials=50)
-        mlflow.log_params({
-            "best_trial_number": study.best_trial.number,
-            "best_value": study.best_value,
-            "n_trials": 50,
-            "optimization_direction": "maximize"
-        })
+    study.optimize(objective, n_trials=50)
 
-    # Print label counts before/after SMOTE
+    mlflow.log_params({
+        "best_trial_number": study.best_trial.number,
+        "best_value": study.best_value,
+        "n_trials": 50,
+        "optimization_direction": "maximize"
+    })
+
+    # Print class distribution before/after SMOTE
     print("Label before SMOTE:", pd.Series(y_train_original).value_counts())
     print("Label after SMOTE:", pd.Series(y_train).value_counts())
     print("\n[INFO] Training best model...")
 
-    # Train and evaluate best model (nested run)
-    with mlflow.start_run(run_name="best_model", nested=True):
-        best_model, test_f1, accuracy = train_best_model(
-            study, X_train, X_test, y_train, y_test, args.output_model
-        )
+    # Train and save final model
+    best_model, test_f1, accuracy = train_best_model(
+        study, X_train, X_test, y_train, y_test, args.output_model
+    )
 
-    # Print results
+    # Print final results
     print("\n[RESULTS] Best Parameters:")
     print(study.best_params)
     print(f"\n[RESULTS] Best CV F1 Score: {study.best_value:.4f}")
@@ -231,3 +226,5 @@ if __name__ == "__main__":
     print(f"[Test] Accuracy: {accuracy:.4f}")
     print(f"\n[INFO] Best model saved as '{args.output_model}'")
 
+    # End the MLflow run
+    mlflow.end_run()
