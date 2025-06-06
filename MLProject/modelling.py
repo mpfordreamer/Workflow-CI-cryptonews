@@ -185,10 +185,6 @@ if __name__ == "__main__":
         study, X_train, X_test, y_train, y_test, args.output_model
     )
 
-    # Log final metrics under the same run:
-    mlflow.log_metric("test_f1", test_f1)
-    mlflow.log_metric("accuracy", accuracy)
-
     print("\n[RESULTS] Best Parameters:")
     print(study.best_params)
     print(f"\n[RESULTS] Best CV F1 Score: {study.best_value:.4f}")
