@@ -4,6 +4,6 @@ conda_env: conda.yaml
 entry_points:
   main:
     parameters:
-      data_dir:     {type: str, default: "preprocessed_cryptonews"}
-      output_model: {type: str, default: "best_lgbm_model.pkl"}
-    command: "python modelling.py --data_dir {data_dir} --output_model {output_model}"
+      data_path:     {type: str, default: "preprocessed_cryptonews.csv"}
+      output_model:  {type: str, default: "best_lgbm_model.pkl"}
+    command: "python modelling.py --data_path {data_path} --output_model {output_model}"

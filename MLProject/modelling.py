@@ -45,12 +45,14 @@ print(f"[INFO] MLflow Tracking URI: {mlflow.get_tracking_uri()}")
 
 def load_and_preprocess_data(data_path):
     """
-    Load preprocessed_cryptonews.csv from data_path folder,
-    perform TF-IDF, split and apply SMOTE, then return
+    Load CSV file directly from MLProject/data_path (e.g., 'preprocessed_cryptonews.csv'),
+    perform TF-IDF, split, apply SMOTE, then return
     (X_train_resampled, X_test, y_train_resampled, y_test).
     """
     current_dir = os.path.dirname(os.path.abspath(__file__))
-    csv_file = os.path.join(current_dir, data_path, 'preprocessed_cryptonews.csv')
+    csv_file = os.path.join(current_dir, data_path)
+    if not os.path.exists(csv_file):
+        raise FileNotFoundError(f"CSV not found at {csv_file}")
     df = pd.read_csv(csv_file)
 
     X_text = df['text_clean']
@@ -184,11 +186,10 @@ def train_best_model(study, X_train, X_test, y_train, y_test, output_model_name)
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--data_dir",
-        dest="data_path",
+        "--data_path",
         type=str,
         required=True,
-        help="Folder containing preprocessed_cryptonews.csv"
+        help="CSV filename (e.g., preprocessed_cryptonews.csv) located in MLProject/"
     )
     parser.add_argument(
         "--output_model",
