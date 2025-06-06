@@ -1,4 +1,5 @@
 import os
+import argparse
 import time
 import pandas as pd
 import numpy as np
@@ -46,10 +47,10 @@ mlflow.set_experiment(EXPERIMENT_NAME)
 print(f"[INFO] MLflow tracking URI set to: {mlflow.get_tracking_uri()}") 
 print(f"[INFO] MLflow experiment set to: {EXPERIMENT_NAME}")
 
-def load_and_preprocess_data():
-    """Load and preprocess the dataset"""
+def load_and_preprocess_data(data_dir):
     current_dir = os.path.dirname(os.path.abspath(__file__))
-    file_path = os.path.join(current_dir, 'cryptonews_preprocessing', 'preprocessed_cryptonews.csv')
+    file_path = os.path.join(current_dir, data_dir, 'preprocessed_cryptonews.csv')
+    df = pd.read_csv(file_path)
     
     df = pd.read_csv(file_path)
     X_text = df['text_clean']
@@ -183,9 +184,13 @@ def train_best_model(study, X_train, X_test, y_train, y_test):
         return best_model, test_f1, accuracy
 
 if __name__ == "__main__":
-    # Load and prepare data
-    print("[INFO] Loading and preparing data...")
-    X_train, X_test, y_train, y_test = load_and_preprocess_data()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--data_dir", type=str, required=True,
+                        help="folder yang berisi preprocessed_cryptonews.csv")
+    args = parser.parse_args()
+
+    # Call the function with the data_dir argument
+    X_train, X_test, y_train, y_test = load_and_preprocess_data(args.data_dir)
     
     # Optimization
     print("[INFO] Starting Optuna optimization...")
