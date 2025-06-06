@@ -1,4 +1,4 @@
-name: ML Training CI - Advance Criteria
+name: ML Training CI  - Advance Criteria
 
 on:
   push:
@@ -35,8 +35,8 @@ jobs:
       - name: Run MLflow Project
         working-directory: MLProject
         env:
-          DAGSHUB_TOKEN: ${{ secrets.DAGSHUB_TOKEN }}
           MLFLOW_TRACKING_URI: ${{ secrets.MLFLOW_TRACKING_URI }}
+          MLFLOW_TRACKING_TOKEN: ${{ secrets.DAGSHUB_TOKEN }}
         run: |
           mlflow run . --env-manager local
 
