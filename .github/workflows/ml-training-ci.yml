@@ -37,7 +37,7 @@ jobs:
         working-directory: MLProject
         run: |
           mlflow run . --env-manager local \
-            -P data_dir=preprocessed_cryptonews \
+            -P data_path=preprocessed_cryptonews \
             -P output_model=best_lgbm_model.pkl
 
       - name: Verify Model Artefak Existence
