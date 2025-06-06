@@ -37,21 +37,21 @@ jobs:
         working-directory: MLProject
         run: |
           mlflow run . --env-manager local \
-            -P data_path=preprocessed_cryptonews \
+            -P data_path=preprocessed_cryptonews.csv \
             -P output_model=best_lgbm_model.pkl
 
       - name: Verify Model Artefak Existence
         run: |
-          ls -la MLProject/best_lgbm_model.pkl
-          ls -la MLProject/confusion_matrix.png
+          ls -la MLProject/models/best_lgbm_model.pkl
+          ls -la MLProject/models/confusion_matrix.png
 
       - name: Upload Model Artefak
         uses: actions/upload-artifact@v4
         with:
           name: trained-models
           path: |
-            MLProject/best_lgbm_model.pkl
-            MLProject/confusion_matrix.png
+            MLProject/models/best_lgbm_model.pkl
+            MLProject/models/confusion_matrix.png
 
       - name: Build Docker Image
         run: |
