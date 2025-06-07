@@ -37,8 +37,10 @@ jobs:
         working-directory: MLProject
         run: |
           mlflow run . --env-manager local \
+            --experiment-name crypto_sentiment_modeling_docker_v5 \
             -P data_path=preprocessed_cryptonews.csv \
             -P output_model=best_lgbm_model.pkl
+
 
       - name: Verify Model Artefak Existence
         run: |
