@@ -23,7 +23,7 @@ jobs:
       - name: Set Up Python
         uses: actions/setup-python@v3
         with:
-          python-version: '3.10'
+          python-version: '3.12.7'
 
       - name: Upgrade pip and Install Dependencies
         run: |
