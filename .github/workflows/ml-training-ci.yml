@@ -56,9 +56,10 @@ jobs:
             MLProject/models/confusion_matrix.png
 
       - name: Build Docker Image
+        working-directory: MLProject
         run: |
-          cd MLProject
-          docker build -t mpfordreamer/crypto-sentiment:latest .
+          docker build -t ${{ secrets.DOCKER_HUB_USER }}/crypto-sentiment:latest .
+
 
       - name: Push to Docker Hub
         if: github.ref == 'refs/heads/main'
