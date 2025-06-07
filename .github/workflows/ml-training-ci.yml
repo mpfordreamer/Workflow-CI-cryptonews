@@ -106,6 +106,13 @@ jobs:
         run: |
           docker build -t ${{ secrets.DOCKER_HUB_USER }}/crypto-sentiment:latest .
 
+      # Tag Docker Image
+      - name: Tag Docker Image
+        run: |
+          docker tag ${{ secrets.DOCKER_HUB_USER }}/crypto-sentiment:latest \
+                    ${{ secrets.DOCKER_HUB_USER }}/crypto-sentiment:${{ github.sha }}
+
+
       # Login + Tag + Push
       - name: Push to Docker Hub
         if: github.ref == 'refs/heads/main'
